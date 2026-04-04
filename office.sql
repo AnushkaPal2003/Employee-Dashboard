@@ -1,243 +1,231 @@
-﻿create database office;
-select * from emp;
-select * from emp_sal;
-use office;
+﻿--------------- Employee Data Analysis & Business Insights using SQL --------------------
 
----Q1.) Joins & Basic Retrieval
+CREATE DATABASE office;
+USE office;
 
--- Retrieve the employee name, department, and salary.
-select 
-    e.name , 
-    es.dept , 
-    es.salary 
-from emp e 
-inner join 
-emp_sal es 
-on e.eid=es.eid;
+SELECT * FROM emp;
+SELECT * FROM emp_sal;
 
--- List employees who do not have a salary record.
-select 
-    e.name from emp e 
-    inner join 
-emp_sal es on 
-e.eid = es.eid 
-where 
-es.salary is null ;
+------------------- STEP 1: DATA CLEANING -------------------
 
--- List employees with salary more than 300000, along with designation and city.
-select 
-    e.name , 
-    e.city , 
-    es.salary , 
-    es.desi 
-from emp e 
+-- Check missing salary records
+SELECT *
+FROM emp_sal
+WHERE salary IS NULL;
 
-inner join
+-- Check employees without salary record
+SELECT e.*
+FROM emp e
+LEFT JOIN emp_sal es ON e.eid = es.eid
+WHERE es.eid IS NULL;
 
-emp_sal es 
-on e.eid=es.eid 
-    where 
-es.salary>300000;
+-- Find duplicate employees
+SELECT name, dob, city, COUNT(*) AS duplicate_count
+FROM emp
+GROUP BY name, dob, city
+HAVING COUNT(*) > 1;
 
--- Get all employees from Delhi working in the HR department.
-select 
-    e.name from emp e 
-inner join 
-emp_sal es 
-on 
-    e.eid=es.eid 
-where e.city='Delhi' and dept='HR';
-
---- Q2.) Aggregations & Grouping
-
--- Count distinct salary from emp_sal
-select count(distinct(salary)) 
-from emp_sal;
-
--- Find the average salary per department.
-select 
-    dept , 
-    avg(salary) 
-as 'avg salary' 
-from emp_sal 
-group by dept;
-
--- Identify the highest-paid employee in each department.
+-- Format DOB and DOJ
 SELECT 
-    name, 
-    dept, 
-    salary
-FROM 
-(
-SELECT e.name, es.dept, es.salary,
-ROW_NUMBER() OVER (PARTITION BY es.dept ORDER BY es.salary DESC) 
-AS rn 
-FROM emp e 
-INNER JOIN emp_sal es ON e.eid = es.eid
-)
-ranked WHERE rn = 1;
-
--- Count how many employees joined per year (use DOJ).
-select 
-    count(eid) as 'Number of employees',
-    year(DOJ) as ' year of joining' 
-from emp 
-group by 
-YEAR(DOJ);
-
--- Show department-wise salary distribution (min, max, avg).
-select 
-    min(salary) as 'minimum salary',
-    max(salary) as 'max salary' , avg(salary)
-as 'average salary' , dept 
-from emp_sal
-group by dept;
-
----Q3.) String & Date Functions
-
--- Extract birth year and calculate current age from DOB.
-SELECT 
-    name,
-    YEAR(dob) AS birth_year,
-    YEAR(Getdate()) - YEAR(dob) AS age
+    eid,
+    FORMAT(dob, 'yyyy-MM-dd') AS formatted_dob,
+    FORMAT(doj, 'yyyy-MM-dd') AS formatted_doj
 FROM emp;
 
--- Format the phone numbers uniformly (e.g., +91-XXXXXXXXXX).
+-- Convert emails to lowercase
+SELECT 
+    email,
+    LOWER(email) AS cleaned_email
+FROM emp;
+
+-- Format phone numbers to +91 format
 SELECT 
     phone,
     '+91-' + RIGHT(phone, 10) AS formatted_phone
 FROM emp;
 
--- Split email ID username and domain separately.
+-- Check for orphan records (salary without employee)
+SELECT *
+FROM emp_sal es
+LEFT JOIN emp e ON es.eid = e.eid
+WHERE e.eid IS NULL;
+
+------------------- STEP 2: JOINS & BASIC RETRIEVAL -------------------
+
+-- Retrieve employee name, department, and salary
 SELECT 
-    CASE 
-        WHEN CHARINDEX('@', email) > 0 THEN SUBSTRING(email, 1, CHARINDEX('@', email) - 1)
-        ELSE NULL
-    END AS Username,
-    CASE 
-        WHEN CHARINDEX('@', email) > 0 THEN SUBSTRING(email, CHARINDEX('@', email) + 1, LEN(email))
-        ELSE NULL
-    END AS Domain
+    e.name, 
+    es.dept, 
+    es.salary
+FROM emp e
+INNER JOIN emp_sal es ON e.eid = es.eid;
+
+-- Employees without salary record (FIXED)
+SELECT 
+    e.name
+FROM emp e
+LEFT JOIN emp_sal es ON e.eid = es.eid
+WHERE es.eid IS NULL;
+
+-- Employees with salary > 300000
+SELECT 
+    e.name, 
+    e.city, 
+    es.salary, 
+    es.desi
+FROM emp e
+INNER JOIN emp_sal es ON e.eid = es.eid
+WHERE es.salary > 300000;
+
+-- Employees from Delhi in HR
+SELECT 
+    e.name
+FROM emp e
+INNER JOIN emp_sal es ON e.eid = es.eid
+WHERE e.city = 'Delhi' AND UPPER(es.dept) = 'HR';
+
+------------------- STEP 3: AGGREGATIONS -------------------
+
+-- Count distinct salaries
+SELECT COUNT(DISTINCT salary) AS distinct_salary_count
+FROM emp_sal;
+
+-- Average salary per department
+SELECT 
+    dept, 
+    AVG(salary) AS avg_salary
+FROM emp_sal
+GROUP BY dept;
+
+-- Highest-paid employee per department
+SELECT name, dept, salary
+FROM (
+    SELECT 
+        e.name, 
+        es.dept, 
+        es.salary,
+        ROW_NUMBER() OVER (PARTITION BY es.dept ORDER BY es.salary DESC) AS rn
+    FROM emp e
+    INNER JOIN emp_sal es ON e.eid = es.eid
+) ranked
+WHERE rn = 1;
+
+-- Employees joined per year
+SELECT 
+    YEAR(doj) AS joining_year,
+    COUNT(eid) AS employee_count
+FROM emp
+GROUP BY YEAR(doj);
+
+-- Salary distribution per department
+SELECT 
+    dept,
+    MIN(salary) AS min_salary,
+    MAX(salary) AS max_salary,
+    AVG(salary) AS avg_salary
+FROM emp_sal
+GROUP BY dept;
+
+------------------- STEP 4: STRING & DATE FUNCTIONS -------------------
+
+-- Extract birth year and accurate age
+SELECT 
+    name,
+    YEAR(dob) AS birth_year,
+    DATEDIFF(YEAR, dob, GETDATE()) AS age
 FROM emp;
 
---- Q4.) Conditional & Advanced Filters
+-- Format phone numbers
+SELECT 
+    phone,
+    '+91-' + RIGHT(phone, 10) AS formatted_phone
+FROM emp;
 
--- Find employees whose designation is ‘Manager’ but salary < 250000.
-select 
-    e.name from emp e 
-inner join 
-emp_sal es 
-on e.eid=es.eid 
-where
-desi='Manager' and salary<250000;
+-- Split email into username and domain
+SELECT 
+    CASE 
+        WHEN CHARINDEX('@', email) > 0 
+        THEN SUBSTRING(email, 1, CHARINDEX('@', email) - 1)
+        ELSE NULL
+    END AS username,
+    CASE 
+        WHEN CHARINDEX('@', email) > 0 
+        THEN SUBSTRING(email, CHARINDEX('@', email) + 1, LEN(email))
+        ELSE NULL
+    END AS domain
+FROM emp;
 
--- Get employees whose name contains ‘Sharma’.
-select 
-    name from emp
-where 
-name like '%Sharma%';
+------------------- STEP 5: CONDITIONAL QUERIES -------------------
 
--- List employees who joined before 2013 and are still earning < 300000.
-select 
-    e.name from emp e 
-inner join
-emp_sal es on e.eid=es.eid 
-where YEAR(e.DOJ)<2013 
-and
-es.SALARY<300000;
+-- Managers earning less than 250000
+SELECT 
+    e.name
+FROM emp e
+INNER JOIN emp_sal es ON e.eid = es.eid
+WHERE es.desi = 'Manager' AND es.salary < 250000;
 
+-- Employees with name containing 'Sharma'
+SELECT 
+    name
+FROM emp
+WHERE name LIKE '%Sharma%';
 
----Q5.) Window Functions (for advanced roles):
+-- Employees joined before 2013 and earning < 300000
+SELECT 
+    e.name
+FROM emp e
+INNER JOIN emp_sal es ON e.eid = es.eid
+WHERE YEAR(e.doj) < 2013 AND es.salary < 300000;
 
--- Rank employees based on salary within each department.
-select 
-    e.name ,
-    es.dept ,  
-rank() over
-(
-partition by es.dept
-order by 
-es.salary desc
-) 
-as [Rank]
-from emp e 
-inner join 
-emp_sal es on e.eid=es.eid;
+------------------- STEP 6: WINDOW FUNCTIONS -------------------
 
--- Get the second-highest salary in each department.
-select name , salary from 
-(
-select e.name , es.salary , 
-rank() over(partition by es.dept order by es.salary desc
-)
-as rm from emp e 
-inner join 
-emp_sal es on e.eid=es.eid
-)
-ranked where rm=2;
+-- Rank employees by salary within department
+SELECT 
+    e.name,
+    es.dept,
+    RANK() OVER (PARTITION BY es.dept ORDER BY es.salary DESC) AS salary_rank
+FROM emp e
+INNER JOIN emp_sal es ON e.eid = es.eid;
 
--- Calculate cumulative salary distribution per department.
-select 
+-- Second-highest salary in each department
+SELECT name, salary
+FROM (
+    SELECT 
+        e.name,
+        es.salary,
+        RANK() OVER (PARTITION BY es.dept ORDER BY es.salary DESC) AS rnk
+    FROM emp e
+    INNER JOIN emp_sal es ON e.eid = es.eid
+) ranked
+WHERE rnk = 2;
+
+-- Cumulative salary distribution
+SELECT 
     dept,
     salary,
-    sum(salary) 
-over 
-(
-partition by dept order by salary desc
-)
-as [total salary] from emp_sal;
+    SUM(salary) OVER (PARTITION BY dept ORDER BY salary DESC) AS cumulative_salary
+FROM emp_sal;
 
---- Q6.) Data Cleaning & Transformation Questions
+------------------- STEP 7: BUSINESS INSIGHTS -------------------
 
--- Standardize date formats (DD-MM-YYYY → YYYY-MM-DD).
-select 
-    DOB , 
-    DOJ , format(DOB, 'yyyy-MM-dd')
-as [Formatted DOB] , format(DOJ , 'dd-MM-yyyy') 
-as [Formatted DOJ] from emp;
+-- City with highest average salary
+SELECT TOP 1
+    e.city,
+    AVG(es.salary) AS avg_salary
+FROM emp e
+INNER JOIN emp_sal es ON e.eid = es.eid
+GROUP BY e.city
+ORDER BY avg_salary DESC;
 
--- Convert email IDs to lowercase.
-select email , Lower(email) as [small] from emp;
+-- Department with lowest average salary (underpaid)
+SELECT TOP 1
+    dept,
+    AVG(salary) AS avg_salary
+FROM emp_sal
+GROUP BY dept
+ORDER BY avg_salary ASC;
 
--- Identify duplicate employees (based on NAME, DOB, city?).
-select 
-    name , 
-    DOB , 
-    DOJ , 
-    count(Name) as count from emp 
-group by 
-    name , 
-    dob , 
-    doj 
-having 
-count(*)>1;
-
-
---- Q7.) Analytical / Business-Oriented Questions
-
--- Which city has the highest average salary?
-select 
-    e.city , 
-    avg(es.salary) as [Avg Salary] 
-    from emp e 
-inner join 
-emp_sal es on e.eid=es.eid 
-    group by e.city 
-    order by 
-    avg(es.salary) desc;  
--- Conclusion:- Delhi has the highest average salary
-
--- Which department seems underpaid compared to others?
-select 
-    dept ,
-    avg(salary) as [Avg Salary] 
-from emp_sal 
-group by 
-dept order by 
-avg(salary) desc;  
--- Conclusion:- Temp department seems underpaid as compared to others.
-
-What is the salary gap between designations (Associate vs Manager vs VP)?
+-- Salary gap across designations (FIXED)
 SELECT 
     desi,
     COUNT(*) AS employee_count,
@@ -245,7 +233,7 @@ SELECT
     MIN(salary) AS min_salary,
     MAX(salary) AS max_salary
 FROM emp_sal
-where desi in ('Assocoate' , 'manager' , 'VP')
+WHERE desi IN ('Associate', 'Manager', 'VP')
 GROUP BY desi
 ORDER BY avg_salary DESC;
 
